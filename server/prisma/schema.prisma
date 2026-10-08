@@ -1,0 +1,137 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum HouseType {
+  PG
+  FLAT
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum SplitType {
+  EQUAL
+  PERCENT
+  CUSTOM
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String   @unique
+  passwordHash String
+  upiId        String?
+  createdAt    DateTime @default(now())
+
+  memberships      Member[]
+  paidExpenses     Expense[]
+  splits           ExpenseSplit[]
+  paymentsSent     Settlement[]      @relation("From")
+  paymentsReceived Settlement[]      @relation("To")
+  choreAssignments ChoreAssignment[]
+}
+
+model House {
+  id         Int       @id @default(autoincrement())
+  name       String
+  type       HouseType @default(FLAT)
+  inviteCode String    @unique
+  createdAt  DateTime  @default(now())
+
+  members     Member[]
+  expenses    Expense[]
+  settlements Settlement[]
+  chores      Chore[]
+}
+
+model Member {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  houseId       Int
+  role          Role      @default(MEMBER)
+  rotationOrder Int       @default(0)
+  joinedAt      DateTime  @default(now())
+  leftAt        DateTime?
+
+  user  User  @relation(fields: [userId], references: [id])
+  house House @relation(fields: [houseId], references: [id])
+
+  @@unique([userId, houseId])
+}
+
+model Expense {
+  id           Int       @id @default(autoincrement())
+  houseId      Int
+  paidById     Int
+  title        String
+  category     String    @default("General")
+  amount       Int
+  splitType    SplitType @default(EQUAL)
+  isRecurring  Boolean   @default(false)
+  recurringDay Int?
+  date         DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+
+  house  House          @relation(fields: [houseId], references: [id])
+  paidBy User           @relation(fields: [paidById], references: [id])
+  splits ExpenseSplit[]
+}
+
+model ExpenseSplit {
+  id        Int       @id @default(autoincrement())
+  expenseId Int
+  userId    Int
+  share     Int
+  isPaid    Boolean   @default(false)
+  paidAt    DateTime?
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([expenseId, userId])
+}
+
+model Settlement {
+  id         Int      @id @default(autoincrement())
+  houseId    Int
+  fromUserId Int
+  toUserId   Int
+  amount     Int
+  createdAt  DateTime @default(now())
+
+  house House @relation(fields: [houseId], references: [id])
+  from  User  @relation("From", fields: [fromUserId], references: [id])
+  to    User  @relation("To", fields: [toUserId], references: [id])
+}
+
+model Chore {
+  id        Int      @id @default(autoincrement())
+  houseId   Int
+  title     String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  house       House             @relation(fields: [houseId], references: [id])
+  assignments ChoreAssignment[]
+}
+
+model ChoreAssignment {
+  id      Int      @id @default(autoincrement())
+  choreId Int
+  userId  Int
+  date    DateTime @db.Date
+  done    Boolean  @default(false)
+
+  chore Chore @relation(fields: [choreId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([choreId, date])
+}
