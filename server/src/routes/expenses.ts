@@ -13,7 +13,6 @@ const createSchema = z.object({
   amountRupees: z.number().positive(),
   isRecurring: z.boolean().default(false),
   recurringDay: z.number().int().min(1).max(28).optional(),
-  // Optional: split by days present instead of equally
   daysPresent: z
     .array(z.object({ userId: z.number().int(), days: z.number().min(0).max(31) }))
     .optional(),
@@ -26,16 +25,21 @@ async function getMembership(userId: number, houseId: number) {
   return m && !m.leftAt ? m : null;
 }
 
-// Admin adds a bill -> split among all current members
+// Any member adds an expense they paid -> split among all current members.
+// Only the admin can use days-present split or recurring bills.
 router.post("/:houseId/expenses", async (req: AuthRequest, res) => {
   const houseId = Number(req.params.houseId);
   const me = await getMembership(req.userId!, houseId);
   if (!me) return res.status(403).json({ error: "Not a member of this house" });
-  if (me.role !== "ADMIN") return res.status(403).json({ error: "Only the admin can add bills" });
 
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
   const d = parsed.data;
+
+  const usesAdminFeature = d.isRecurring || (d.daysPresent && d.daysPresent.length > 0);
+  if (usesAdminFeature && me.role !== "ADMIN") {
+    return res.status(403).json({ error: "Only the admin can use days-present or recurring bills" });
+  }
 
   const members = await prisma.member.findMany({
     where: { houseId, leftAt: null },
@@ -126,17 +130,21 @@ router.get("/:houseId/my-dues", async (req: AuthRequest, res) => {
   res.json({ totalPaise, totalRupees: totalPaise / 100, dues });
 });
 
-// Admin deletes a bill (its splits are removed automatically)
+// Admin, or the person who paid, can delete an expense
 router.delete("/:houseId/expenses/:expenseId", async (req: AuthRequest, res) => {
   const houseId = Number(req.params.houseId);
   const me = await getMembership(req.userId!, houseId);
   if (!me) return res.status(403).json({ error: "Not a member of this house" });
-  if (me.role !== "ADMIN") return res.status(403).json({ error: "Only the admin can delete bills" });
 
-  const result = await prisma.expense.deleteMany({
+  const expense = await prisma.expense.findFirst({
     where: { id: Number(req.params.expenseId), houseId },
   });
-  if (result.count === 0) return res.status(404).json({ error: "Bill not found" });
+  if (!expense) return res.status(404).json({ error: "Bill not found" });
+  if (me.role !== "ADMIN" && expense.paidById !== me.userId) {
+    return res.status(403).json({ error: "Only the admin or the person who paid can delete this" });
+  }
+
+  await prisma.expense.delete({ where: { id: expense.id } });
   res.json({ message: "Bill deleted" });
 });
 

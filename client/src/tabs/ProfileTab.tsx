@@ -7,12 +7,18 @@ import type { HouseData } from "../types";
 export default function ProfileTab({ house }: { house: HouseData }) {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const isAdmin = house.myRole === "ADMIN";
   const [upiId, setUpiId] = useState("");
   const [msg, setMsg] = useState("");
+  const [houseMsg, setHouseMsg] = useState("");
 
   useEffect(() => {
     api.get("/profile").then((r) => setUpiId(r.data.upiId));
   }, []);
+
+  function errorText(err: unknown) {
+    return axios.isAxiosError(err) ? err.response?.data?.error ?? "Failed" : "Failed";
+  }
 
   async function saveUpi(e: FormEvent) {
     e.preventDefault();
@@ -21,7 +27,40 @@ export default function ProfileTab({ house }: { house: HouseData }) {
       await api.patch("/profile/upi", { upiId });
       setMsg("UPI id saved");
     } catch (err) {
-      setMsg(axios.isAxiosError(err) ? err.response?.data?.error ?? "Failed" : "Failed");
+      setMsg(errorText(err));
+    }
+  }
+
+  async function leaveHouse() {
+    if (!window.confirm("Leave this house?")) return;
+    setHouseMsg("");
+    try {
+      await api.post(`/houses/${house.id}/leave`);
+      navigate("/choose");
+    } catch (err) {
+      setHouseMsg(errorText(err));
+    }
+  }
+
+  async function removeMember(userId: number, name: string) {
+    if (!window.confirm(`Remove ${name} from the house?`)) return;
+    setHouseMsg("");
+    try {
+      await api.delete(`/houses/${house.id}/members/${userId}`);
+      window.location.reload();
+    } catch (err) {
+      setHouseMsg(errorText(err));
+    }
+  }
+
+  async function deleteHouse() {
+    if (!window.confirm("Delete this house and ALL its bills and chores? This cannot be undone.")) return;
+    setHouseMsg("");
+    try {
+      await api.delete(`/houses/${house.id}`);
+      navigate("/choose");
+    } catch (err) {
+      setHouseMsg(errorText(err));
     }
   }
 
@@ -52,9 +91,42 @@ export default function ProfileTab({ house }: { house: HouseData }) {
         {msg && <p className="text-sm text-gray-700">{msg}</p>}
       </form>
 
+      {isAdmin && (
+        <section>
+          <h2 className="font-semibold">Manage members</h2>
+          <ul className="mt-2 space-y-1">
+            {house.members.map((m) => (
+              <li key={m.id} className="flex items-center justify-between rounded-lg bg-white px-4 py-2">
+                <span>
+                  {m.user.name} <span className="text-xs text-gray-500">({m.role})</span>
+                </span>
+                {m.user.id !== user.id && (
+                  <button onClick={() => removeMember(m.user.id, m.user.name)} className="text-sm text-red-600">
+                    Remove
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {houseMsg && <p className="text-sm text-red-600">{houseMsg}</p>}
+
       <button onClick={() => navigate("/choose")} className="w-full rounded-lg border border-primary py-3 text-primary">
         Switch house
       </button>
+
+      {isAdmin ? (
+        <button onClick={deleteHouse} className="w-full rounded-lg border border-red-600 py-3 text-red-600">
+          Delete house
+        </button>
+      ) : (
+        <button onClick={leaveHouse} className="w-full rounded-lg border border-red-600 py-3 text-red-600">
+          Leave house
+        </button>
+      )}
+
       <button onClick={logout} className="w-full rounded-lg bg-primary py-3 text-white">
         Logout
       </button>

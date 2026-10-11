@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import axios from "axios";
 import { api } from "../api";
 import type { HouseData } from "../types";
 
@@ -37,6 +38,12 @@ export default function HomeTab({ house }: { house: HouseData }) {
   const [collect, setCollect] = useState<Collect | null>(null);
   const [plan, setPlan] = useState<Transfer[]>([]);
 
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("Groceries");
+  const [amount, setAmount] = useState("");
+  const [expMsg, setExpMsg] = useState("");
+  const [saving, setSaving] = useState(false);
+
   function load() {
     api.get(`/houses/${house.id}/chores/today`).then((r) => setChores(r.data));
     api.get(`/houses/${house.id}/my-dues`).then((r) => setDues(r.data));
@@ -56,9 +63,33 @@ export default function HomeTab({ house }: { house: HouseData }) {
     api.patch(`/houses/${house.id}/splits/${splitId}/paid`).then(load);
   }
 
+  async function addExpense(e: FormEvent) {
+    e.preventDefault();
+    if (saving) return;
+    setExpMsg("");
+    setSaving(true);
+    try {
+      await api.post(`/houses/${house.id}/expenses`, {
+        title,
+        category,
+        amountRupees: Number(amount),
+      });
+      setExpMsg(`Added. Split equally among ${house.members.length} members`);
+      setTitle("");
+      setAmount("");
+      load();
+    } catch (err) {
+      setExpMsg(axios.isAxiosError(err) ? err.response?.data?.error ?? "Failed" : "Failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function upiLink(upiId: string, name: string, rupees: number, note: string) {
     return `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(name)}&am=${rupees.toFixed(2)}&cu=INR&tn=${encodeURIComponent(note)}`;
   }
+
+  const input = "w-full rounded-lg border border-gray-300 bg-white px-4 py-3";
 
   return (
     <div className="space-y-6">
@@ -99,6 +130,27 @@ export default function HomeTab({ house }: { house: HouseData }) {
             ))}
           </ul>
         )}
+      </section>
+
+      <section>
+        <h2 className="font-semibold">Add an expense I paid</h2>
+        <p className="text-xs text-gray-500">Groceries, gas cylinder, milk... split equally among everyone.</p>
+        <form onSubmit={addExpense} className="mt-2 space-y-2">
+          <input className={input} placeholder="What did you buy? (e.g. Groceries)" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <select className={input} value={category} onChange={(e) => setCategory(e.target.value)}>
+            <option>Groceries</option>
+            <option>Gas</option>
+            <option>Milk</option>
+            <option>Cleaning</option>
+            <option>Household</option>
+            <option>Other</option>
+          </select>
+          <input className={input} type="number" placeholder="Amount in rupees" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <button disabled={saving} className="w-full rounded-lg bg-primary py-3 text-white disabled:opacity-60">
+            {saving ? "Adding..." : "Add and split"}
+          </button>
+          {expMsg && <p className="text-sm text-gray-700">{expMsg}</p>}
+        </form>
       </section>
 
       <section>

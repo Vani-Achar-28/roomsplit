@@ -16,6 +16,25 @@ const joinSchema = z.object({
   inviteCode: z.string().min(4),
 });
 
+async function getMembership(userId: number, houseId: number) {
+  const m = await prisma.member.findUnique({
+    where: { userId_houseId: { userId, houseId } },
+  });
+  return m && !m.leftAt ? m : null;
+}
+
+// True if this person still owes money, or is still owed money, in the house
+async function hasUnsettled(userId: number, houseId: number) {
+  const count = await prisma.expenseSplit.count({
+    where: {
+      isPaid: false,
+      expense: { houseId },
+      OR: [{ userId }, { expense: { paidById: userId } }],
+    },
+  });
+  return count > 0;
+}
+
 // Create a house (the creator becomes ADMIN)
 router.post("/", async (req: AuthRequest, res) => {
   const parsed = createSchema.safeParse(req.body);
@@ -35,7 +54,7 @@ router.post("/", async (req: AuthRequest, res) => {
   res.status(201).json(house);
 });
 
-// Join a house with an invite code (becomes MEMBER)
+// Join a house with an invite code (becomes MEMBER). Also works to rejoin.
 router.post("/join", async (req: AuthRequest, res) => {
   const parsed = joinSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
@@ -47,18 +66,23 @@ router.post("/join", async (req: AuthRequest, res) => {
   });
   if (!house) return res.status(404).json({ error: "Invalid invite code" });
 
-  if (house.members.some((m) => m.userId === userId)) {
+  const existing = house.members.find((m) => m.userId === userId);
+  if (existing && !existing.leftAt) {
     return res.status(409).json({ error: "You are already in this house" });
   }
 
-  await prisma.member.create({
-    data: {
-      userId,
-      houseId: house.id,
-      role: "MEMBER",
-      rotationOrder: house.members.length,
-    },
-  });
+  const activeCount = house.members.filter((m) => !m.leftAt).length;
+
+  if (existing) {
+    await prisma.member.update({
+      where: { id: existing.id },
+      data: { leftAt: null, joinedAt: new Date(), rotationOrder: activeCount },
+    });
+  } else {
+    await prisma.member.create({
+      data: { userId, houseId: house.id, role: "MEMBER", rotationOrder: activeCount },
+    });
+  }
 
   res.json({ message: "Joined", houseId: house.id, name: house.name });
 });
@@ -72,12 +96,59 @@ router.get("/mine", async (req: AuthRequest, res) => {
   res.json(memberships.map((m) => ({ ...m.house, role: m.role })));
 });
 
+// Leave a house (members only; the admin must delete the house instead)
+router.post("/:id/leave", async (req: AuthRequest, res) => {
+  const houseId = Number(req.params.id);
+  const me = await getMembership(req.userId!, houseId);
+  if (!me) return res.status(403).json({ error: "Not a member of this house" });
+  if (me.role === "ADMIN") {
+    return res.status(400).json({ error: "The admin cannot leave. Delete the house instead." });
+  }
+  if (await hasUnsettled(me.userId, houseId)) {
+    return res.status(400).json({ error: "Settle your pending payments before leaving" });
+  }
+  await prisma.member.update({ where: { id: me.id }, data: { leftAt: new Date() } });
+  res.json({ message: "You left the house" });
+});
+
+// Admin removes a member
+router.delete("/:id/members/:userId", async (req: AuthRequest, res) => {
+  const houseId = Number(req.params.id);
+  const targetId = Number(req.params.userId);
+  const me = await getMembership(req.userId!, houseId);
+  if (!me) return res.status(403).json({ error: "Not a member of this house" });
+  if (me.role !== "ADMIN") return res.status(403).json({ error: "Only the admin can remove members" });
+  if (targetId === me.userId) return res.status(400).json({ error: "You cannot remove yourself" });
+
+  const target = await getMembership(targetId, houseId);
+  if (!target) return res.status(404).json({ error: "Member not found" });
+  if (await hasUnsettled(targetId, houseId)) {
+    return res.status(400).json({ error: "This member has pending payments. Settle them first." });
+  }
+  await prisma.member.update({ where: { id: target.id }, data: { leftAt: new Date() } });
+  res.json({ message: "Member removed" });
+});
+
+// Admin deletes the whole house and everything in it
+router.delete("/:id", async (req: AuthRequest, res) => {
+  const houseId = Number(req.params.id);
+  const me = await getMembership(req.userId!, houseId);
+  if (!me) return res.status(403).json({ error: "Not a member of this house" });
+  if (me.role !== "ADMIN") return res.status(403).json({ error: "Only the admin can delete the house" });
+
+  await prisma.choreAssignment.deleteMany({ where: { chore: { houseId } } });
+  await prisma.chore.deleteMany({ where: { houseId } });
+  await prisma.expense.deleteMany({ where: { houseId } });
+  await prisma.settlement.deleteMany({ where: { houseId } });
+  await prisma.member.deleteMany({ where: { houseId } });
+  await prisma.house.delete({ where: { id: houseId } });
+  res.json({ message: "House deleted" });
+});
+
 // One house with its members
 router.get("/:id", async (req: AuthRequest, res) => {
   const houseId = Number(req.params.id);
-  const me = await prisma.member.findUnique({
-    where: { userId_houseId: { userId: req.userId!, houseId } },
-  });
+  const me = await getMembership(req.userId!, houseId);
   if (!me) return res.status(403).json({ error: "Not a member of this house" });
 
   const house = await prisma.house.findUnique({
