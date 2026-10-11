@@ -23,17 +23,25 @@ type Collect = {
   items: { id: number; share: number; user: { name: string }; expense: { title: string } }[];
 };
 
+type Transfer = {
+  from: { id: number; name: string };
+  to: { id: number; name: string; upiId: string | null };
+  amountRupees: number;
+};
+
 export default function HomeTab({ house }: { house: HouseData }) {
   const me = JSON.parse(localStorage.getItem("user") || "{}");
   const isAdmin = house.myRole === "ADMIN";
   const [chores, setChores] = useState<Assignment[]>([]);
   const [dues, setDues] = useState<Dues | null>(null);
   const [collect, setCollect] = useState<Collect | null>(null);
+  const [plan, setPlan] = useState<Transfer[]>([]);
 
   function load() {
     api.get(`/houses/${house.id}/chores/today`).then((r) => setChores(r.data));
     api.get(`/houses/${house.id}/my-dues`).then((r) => setDues(r.data));
     api.get(`/houses/${house.id}/to-collect`).then((r) => setCollect(r.data));
+    api.get(`/houses/${house.id}/summary`).then((r) => setPlan(r.data));
   }
 
   useEffect(() => {
@@ -144,6 +152,21 @@ export default function HomeTab({ house }: { house: HouseData }) {
           </ul>
         </section>
       )}
+
+      <section>
+        <h2 className="font-semibold">Settle-up plan (fewest payments)</h2>
+        {plan.length === 0 ? (
+          <p className="mt-2 text-sm text-gray-500">Everyone is settled up.</p>
+        ) : (
+          <ul className="mt-2 space-y-1">
+            {plan.map((t, i) => (
+              <li key={i} className="rounded-lg bg-white px-4 py-2 text-sm">
+                {t.from.name} pays {t.to.name} <span className="font-bold">Rs {t.amountRupees.toFixed(2)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { simplifyDebts } from "../services/debts";
 
 const router = Router();
 
@@ -63,6 +64,41 @@ router.patch("/houses/:houseId/splits/:splitId/paid", requireAuth, async (req: A
     data: { isPaid: true, paidAt: new Date() },
   });
   res.json(updated);
+});
+
+// Simplified settle-up plan: fewest payments to clear all unpaid shares
+router.get("/houses/:houseId/summary", requireAuth, async (req: AuthRequest, res) => {
+  const houseId = Number(req.params.houseId);
+  if (!(await getMembership(req.userId!, houseId))) {
+    return res.status(403).json({ error: "Not a member of this house" });
+  }
+
+  const unpaid = await prisma.expenseSplit.findMany({
+    where: { isPaid: false, expense: { houseId } },
+    include: { expense: { select: { paidById: true } } },
+  });
+
+  const net = new Map<number, number>();
+  for (const s of unpaid) {
+    net.set(s.userId, (net.get(s.userId) ?? 0) - s.share); // debtor owes
+    net.set(s.expense.paidById, (net.get(s.expense.paidById) ?? 0) + s.share); // payer is owed
+  }
+
+  const transfers = simplifyDebts([...net.entries()].map(([userId, n]) => ({ userId, net: n })));
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: [...new Set(transfers.flatMap((t) => [t.fromUserId, t.toUserId]))] } },
+    select: { id: true, name: true, upiId: true },
+  });
+  const byId = new Map(users.map((u) => [u.id, u]));
+
+  res.json(
+    transfers.map((t) => ({
+      from: byId.get(t.fromUserId),
+      to: byId.get(t.toUserId),
+      amountRupees: t.amount / 100,
+    }))
+  );
 });
 
 export default router;
