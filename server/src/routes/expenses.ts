@@ -92,7 +92,13 @@ router.get("/:houseId/my-dues", async (req: AuthRequest, res) => {
   const dues = await prisma.expenseSplit.findMany({
     where: { userId: req.userId!, isPaid: false, expense: { houseId } },
     include: {
-      expense: { select: { title: true, category: true, paidBy: { select: { name: true } } } },
+      expense: {
+        select: {
+          title: true,
+          category: true,
+          paidBy: { select: { name: true, upiId: true } },
+        },
+      },
     },
   });
   const totalPaise = dues.reduce((sum, s) => sum + s.share, 0);
