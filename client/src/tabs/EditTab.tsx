@@ -10,6 +10,8 @@ type Bill = {
   category: string;
   amount: number;
   splitType: string;
+  isRecurring: boolean;
+  recurringDay: number | null;
   date: string;
   paidBy: { name: string };
   splits: { id: number; isPaid: boolean }[];
@@ -24,6 +26,9 @@ export default function EditTab({ house }: { house: HouseData }) {
 
   const [byDays, setByDays] = useState(false);
   const [days, setDays] = useState<Record<number, string>>({});
+
+  const [repeat, setRepeat] = useState(false);
+  const [repeatDay, setRepeatDay] = useState("1");
 
   const [choreTitle, setChoreTitle] = useState("");
   const [chores, setChores] = useState<Assignment[]>([]);
@@ -66,8 +71,23 @@ export default function EditTab({ house }: { house: HouseData }) {
           days: Number(days[m.user.id] ?? 0),
         }));
       }
+      if (repeat) {
+        const d = Number(repeatDay);
+        if (!Number.isInteger(d) || d < 1 || d > 28) {
+          setBillMsg("Repeat day must be between 1 and 28");
+          return;
+        }
+        body.isRecurring = true;
+        body.recurringDay = d;
+      }
       await api.post(`/houses/${house.id}/expenses`, body);
-      setBillMsg(byDays ? "Bill added and split by days present" : `Bill added and split among ${house.members.length} members`);
+      setBillMsg(
+        repeat
+          ? `Bill added. It will repeat on day ${repeatDay} of every month`
+          : byDays
+          ? "Bill added and split by days present"
+          : `Bill added and split among ${house.members.length} members`
+      );
       setTitle("");
       setAmount("");
       loadBills();
@@ -127,7 +147,12 @@ export default function EditTab({ house }: { house: HouseData }) {
           <input className={input} type="number" placeholder="Amount in rupees" value={amount} onChange={(e) => setAmount(e.target.value)} />
 
           <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input type="checkbox" checked={byDays} onChange={(e) => toggleByDays(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={byDays}
+              disabled={repeat}
+              onChange={(e) => toggleByDays(e.target.checked)}
+            />
             Split by days present (instead of equally)
           </label>
 
@@ -147,6 +172,30 @@ export default function EditTab({ house }: { house: HouseData }) {
                   />
                 </div>
               ))}
+            </div>
+          )}
+
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={repeat}
+              disabled={byDays}
+              onChange={(e) => setRepeat(e.target.checked)}
+            />
+            Repeat every month (rent, WiFi...)
+          </label>
+
+          {repeat && (
+            <div className="flex items-center justify-between gap-3 rounded-lg bg-white p-3">
+              <span className="text-sm text-gray-700">Create on day (1-28) of each month</span>
+              <input
+                type="number"
+                min={1}
+                max={28}
+                className="w-24 rounded-lg border border-gray-300 px-3 py-2"
+                value={repeatDay}
+                onChange={(e) => setRepeatDay(e.target.value)}
+              />
             </div>
           )}
 
@@ -170,6 +219,11 @@ export default function EditTab({ house }: { house: HouseData }) {
                       {b.title} <span className="text-xs text-gray-500">({b.category})</span>
                       {b.splitType === "CUSTOM" && (
                         <span className="ml-1 rounded bg-gray-100 px-1 text-xs text-gray-600">by days</span>
+                      )}
+                      {b.isRecurring && (
+                        <span className="ml-1 rounded bg-gray-100 px-1 text-xs text-gray-600">
+                          repeats on day {b.recurringDay}
+                        </span>
                       )}
                     </p>
                     <p className="text-sm text-gray-600">
