@@ -7,3 +7,15 @@ api.interceptors.request.use((config) => {
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
+
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    const isAuthCall = String(err?.config?.url ?? "").startsWith("/auth/");
+    if (axios.isAxiosError(err) && err.response?.status === 401 && !isAuthCall) {
+      localStorage.clear();
+      window.location.href = "/login";
+    }
+    return Promise.reject(err);
+  }
+);
