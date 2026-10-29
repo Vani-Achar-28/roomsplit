@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
+import SplitPage from "../components/SplitPage";
 
 type House = { id: number; name: string; role: string };
 
@@ -31,47 +32,49 @@ export default function Choose() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-6 text-center">
-      <h1 className="text-2xl font-bold text-primary">Hi {user.name}!</h1>
+    <SplitPage title={`Hi ${user.name || "there"}`} subtitle="Open one of your houses, or start a new one.">
+      <div className="space-y-6">
+        <section>
+          <h2 className="font-semibold text-slate-900">Your houses</h2>
+          {loading && <p className="mt-3 text-sm text-slate-500">Loading...</p>}
+          {error && (
+            <div className="mt-3 space-y-2">
+              <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+              <button onClick={load} className="btn-primary">Try again</button>
+            </div>
+          )}
+          {!loading && !error && houses.length === 0 && (
+            <p className="mt-3 rounded-xl bg-white p-4 text-sm text-slate-500 ring-1 ring-slate-200">
+              You are not in any house yet. Create one or join with an invite code.
+            </p>
+          )}
+          <ul className="mt-3 space-y-2">
+            {houses.map((h) => (
+              <li key={h.id}>
+                <Link to={`/house/${h.id}`} className="flex items-center gap-3 rounded-xl bg-white p-4 ring-1 ring-slate-200 transition hover:ring-brand">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-soft font-bold text-brand">
+                    {h.name.charAt(0).toUpperCase()}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-semibold text-slate-900">{h.name}</span>
+                    <span className="text-xs text-slate-500">{h.role === "ADMIN" ? "You are the admin" : "Member"}</span>
+                  </span>
+                  <span className="text-slate-400">›</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
 
-      {loading && <p className="mt-6 text-sm text-gray-500">Loading your houses...</p>}
-
-      {error && (
-        <div className="mt-6 space-y-2">
-          <p className="text-sm text-red-600">{error}</p>
-          <button onClick={load} className="rounded-lg bg-primary px-4 py-2 text-sm text-white">
-            Try again
-          </button>
+        <div className="space-y-3">
+          <Link to="/create-house" className="btn-primary block">Create a house</Link>
+          <Link to="/join-house" className="btn-outline block">Join with invite code</Link>
         </div>
-      )}
 
-      {!loading && houses.length > 0 && (
-        <div className="mt-6 w-full max-w-xs space-y-2">
-          <p className="text-sm text-gray-600">Your houses</p>
-          {houses.map((h) => (
-            <Link
-              key={h.id}
-              to={`/house/${h.id}`}
-              className="block rounded-lg border border-gray-300 bg-white px-4 py-3 text-left"
-            >
-              {h.name} <span className="text-xs text-gray-500">({h.role})</span>
-            </Link>
-          ))}
-        </div>
-      )}
-
-      <div className="mt-6 flex w-full max-w-xs flex-col gap-3">
-        <Link to="/create-house" className="rounded-lg bg-primary py-3 text-white">
-          Create a house
-        </Link>
-        <Link to="/join-house" className="rounded-lg border border-primary py-3 text-primary">
-          Join a house
-        </Link>
+        <button onClick={logout} className="text-sm font-medium text-slate-500 underline">
+          Logout
+        </button>
       </div>
-
-      <button onClick={logout} className="mt-8 text-sm text-gray-500 underline">
-        Logout
-      </button>
-    </div>
+    </SplitPage>
   );
 }

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { api } from "../api";
 import type { HouseData } from "../types";
+import Section from "../components/Section";
 
 export default function ProfileTab({ house }: { house: HouseData }) {
   const navigate = useNavigate();
@@ -25,7 +26,7 @@ export default function ProfileTab({ house }: { house: HouseData }) {
     setMsg("");
     try {
       await api.patch("/profile/upi", { upiId });
-      setMsg("UPI id saved");
+      setMsg("UPI id saved.");
     } catch (err) {
       setMsg(errorText(err));
     }
@@ -70,66 +71,76 @@ export default function ProfileTab({ house }: { house: HouseData }) {
   }
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold text-primary">Profile</h1>
-      <div className="space-y-1 rounded-lg bg-white p-4">
-        <p><span className="text-gray-500">Name:</span> {user.name}</p>
-        <p><span className="text-gray-500">Email:</span> {user.email}</p>
-        <p><span className="text-gray-500">House:</span> {house.name}</p>
-        <p><span className="text-gray-500">Role:</span> {house.myRole}</p>
+    <div className="space-y-5">
+      <div className="card flex items-center gap-4">
+        <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-brand text-2xl font-bold text-white">
+          {(user.name || "?").charAt(0).toUpperCase()}
+        </span>
+        <div className="min-w-0">
+          <h1 className="truncate text-xl font-bold text-slate-900">{user.name}</h1>
+          <p className="truncate text-sm text-slate-500">{user.email}</p>
+          <p className="mt-1 text-sm text-slate-500">
+            {house.name} · <span className="rounded-full bg-brand-soft px-2 py-0.5 text-xs font-semibold text-brand">{isAdmin ? "Admin" : "Member"}</span>
+          </p>
+        </div>
       </div>
 
-      <form onSubmit={saveUpi} className="space-y-2">
-        <h2 className="font-semibold">My UPI id</h2>
-        <input
-          className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3"
-          placeholder="yourname@upi"
-          value={upiId}
-          onChange={(e) => setUpiId(e.target.value)}
-        />
-        <button className="w-full rounded-lg bg-primary py-3 text-white">Save UPI id</button>
-        {msg && <p className="text-sm text-gray-700">{msg}</p>}
-      </form>
+      <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
+        <div className="space-y-5">
+          <Section title="My UPI id" hint="Flatmates use this to pay you.">
+            <form onSubmit={saveUpi} className="space-y-3">
+              <input className="field" placeholder="yourname@upi" value={upiId} onChange={(e) => setUpiId(e.target.value)} />
+              <button className="btn-primary">Save UPI id</button>
+              {msg && <p className="rounded-xl bg-brand-soft px-3 py-2 text-sm text-brand">{msg}</p>}
+            </form>
+          </Section>
 
-      {isAdmin && (
-        <section>
-          <h2 className="font-semibold">Manage members</h2>
-          <ul className="mt-2 space-y-1">
-            {house.members.map((m) => (
-              <li key={m.id} className="flex items-center justify-between rounded-lg bg-white px-4 py-2">
-                <span>
-                  {m.user.name} <span className="text-xs text-gray-500">({m.role})</span>
-                </span>
-                {m.user.id !== user.id && (
-                  <button onClick={() => removeMember(m.user.id, m.user.name)} className="text-sm text-red-600">
-                    Remove
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+          <Section title="Account">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button onClick={() => navigate("/choose")} className="btn-outline">Switch house</button>
+              <button onClick={logout} className="btn-outline">Logout</button>
+            </div>
+          </Section>
+        </div>
 
-      {houseMsg && <p className="text-sm text-red-600">{houseMsg}</p>}
+        <div className="space-y-5">
+          {isAdmin && (
+            <Section title="Members" hint="You can remove a flatmate once they have no pending payments.">
+              <ul className="divide-y divide-slate-100">
+                {house.members.map((m) => (
+                  <li key={m.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-soft text-sm font-bold text-brand">
+                      {m.user.name.charAt(0).toUpperCase()}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-slate-900">{m.user.name}</p>
+                      <p className="text-xs text-slate-500">{m.role === "ADMIN" ? "Admin" : "Member"}</p>
+                    </div>
+                    {m.user.id !== user.id && (
+                      <button onClick={() => removeMember(m.user.id, m.user.name)} className="text-sm font-semibold text-red-600">
+                        Remove
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
 
-      <button onClick={() => navigate("/choose")} className="w-full rounded-lg border border-primary py-3 text-primary">
-        Switch house
-      </button>
+          {houseMsg && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600">{houseMsg}</p>}
 
-      {isAdmin ? (
-        <button onClick={deleteHouse} className="w-full rounded-lg border border-red-600 py-3 text-red-600">
-          Delete house
-        </button>
-      ) : (
-        <button onClick={leaveHouse} className="w-full rounded-lg border border-red-600 py-3 text-red-600">
-          Leave house
-        </button>
-      )}
-
-      <button onClick={logout} className="w-full rounded-lg bg-primary py-3 text-white">
-        Logout
-      </button>
+          <Section
+            title={isAdmin ? "Delete house" : "Leave house"}
+            hint={isAdmin ? "This removes all bills and chores for everyone." : "You can leave once all your payments are settled."}
+          >
+            {isAdmin ? (
+              <button onClick={deleteHouse} className="btn-danger">Delete house</button>
+            ) : (
+              <button onClick={leaveHouse} className="btn-danger">Leave house</button>
+            )}
+          </Section>
+        </div>
+      </div>
     </div>
   );
 }
