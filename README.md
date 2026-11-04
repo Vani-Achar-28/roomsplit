@@ -1,4 +1,5 @@
 # RoomSplit
+![CI](https://github.com/Vani-Achar-28/roomsplit/actions/workflows/ci.yml/badge.svg)
 
 Split bills, rotate chores and settle up with UPI. Built for Indian PGs and flatmates.
 
