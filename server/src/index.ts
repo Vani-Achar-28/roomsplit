@@ -4,6 +4,7 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import cron from "node-cron";
+import swaggerUi from "swagger-ui-express";
 import authRoutes from "./routes/auth";
 import houseRoutes from "./routes/houses";
 import expenseRoutes from "./routes/expenses";
@@ -11,9 +12,10 @@ import choreRoutes from "./routes/chores";
 import paymentRoutes from "./routes/payments";
 import reportRoutes from "./routes/reports";
 import { runRecurringBills } from "./jobs/recurring";
+import { openapi } from "./docs";
 
 const app = express();
-app.use(helmet());
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
 app.use(express.json());
 
@@ -29,6 +31,9 @@ const authLimiter = rateLimit({
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", app: "roomsplit" });
 });
+
+// API documentation page
+app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(openapi));
 
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
