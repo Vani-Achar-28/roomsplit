@@ -9,6 +9,7 @@ import houseRoutes from "./routes/houses";
 import expenseRoutes from "./routes/expenses";
 import choreRoutes from "./routes/chores";
 import paymentRoutes from "./routes/payments";
+import reportRoutes from "./routes/reports";
 import { runRecurringBills } from "./jobs/recurring";
 
 const app = express();
@@ -35,6 +36,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/houses", houseRoutes);
 app.use("/api/houses", expenseRoutes);
 app.use("/api/houses", choreRoutes);
+app.use("/api/houses", reportRoutes);
 app.use("/api", paymentRoutes);
 
 // Every night at 12:05 AM India time

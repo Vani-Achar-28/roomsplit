@@ -6,14 +6,16 @@ import type { HouseData } from "../types";
 import HomeTab from "../tabs/HomeTab";
 import EditTab from "../tabs/EditTab";
 import ProfileTab from "../tabs/ProfileTab";
+import ReportTab from "../tabs/ReportTab";
 import Logo from "../components/Logo";
 
-type Tab = "home" | "edit" | "profile";
+type Tab = "home" | "report" | "edit" | "profile";
 
-const labels: Record<Tab, string> = { home: "Home", edit: "Manage", profile: "Profile" };
+const labels: Record<Tab, string> = { home: "Home", report: "Report", edit: "Manage", profile: "Profile" };
 
 const icons: Record<Tab, ReactNode> = {
   home: <path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />,
+  report: <path d="M5 21V10M12 21V4M19 21v-7" />,
   edit: (
     <>
       <path d="M4 6h8M16 6h4M4 12h2M10 12h10M4 18h10M18 18h2" />
@@ -81,11 +83,10 @@ export default function Home() {
   }
 
   const isAdmin = house.myRole === "ADMIN";
-  const tabs: Tab[] = isAdmin ? ["home", "edit", "profile"] : ["home", "profile"];
+  const tabs: Tab[] = isAdmin ? ["home", "report", "edit", "profile"] : ["home", "report", "profile"];
 
   return (
     <div className="min-h-screen w-full overflow-x-hidden bg-page">
-      {/* Sidebar: laptop */}
       <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col border-r border-slate-200 bg-white p-5 md:flex">
         <div className="flex items-center gap-3">
           <Logo size={40} />
@@ -124,9 +125,7 @@ export default function Home() {
         </div>
       </aside>
 
-      {/* Everything to the right of the sidebar */}
       <div className="min-w-0 md:pl-64">
-        {/* Top bar: phone */}
         <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 md:hidden">
           <div className="flex items-center gap-3">
             <Logo size={34} />
@@ -138,13 +137,13 @@ export default function Home() {
         <main className="w-full min-w-0 px-4 pb-28 pt-5 md:px-8 md:pb-10 md:pt-8">
           <div className="mx-auto w-full min-w-0 max-w-6xl">
             {tab === "home" && <HomeTab house={house} />}
+            {tab === "report" && <ReportTab house={house} />}
             {tab === "edit" && isAdmin && <EditTab house={house} />}
             {tab === "profile" && <ProfileTab house={house} />}
           </div>
         </main>
       </div>
 
-      {/* Bottom bar: phone */}
       <nav className="fixed inset-x-0 bottom-0 z-10 flex border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden">
         {tabs.map((t) => (
           <button
